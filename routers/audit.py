@@ -36,8 +36,12 @@ def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
-async def _build_questions_for_project(project: dict, existing_questions: list | None = None) -> list:
-    target_count = max(1, min(int(project.get("question_count") or 8), 30))
+async def _build_questions_for_project(
+    project: dict,
+    existing_questions: list | None = None,
+    target_count: int | None = None,
+) -> list:
+    target_count = max(1, min(int(target_count or project.get("question_count") or 8), 30))
     return await generate_llm_questions(
         framework_ids=project.get("frameworks", []),
         custom_text=project.get("custom_framework_text", ""),
@@ -47,6 +51,25 @@ async def _build_questions_for_project(project: dict, existing_questions: list |
         target_count=target_count,
         existing_questions=existing_questions,
     )
+
+
+async def _generate_until_target(project: dict, existing: list, target_count: int) -> list:
+    generated: list = []
+    prompt_history = list(existing)
+    attempts = 0
+    while len(existing) + len(generated) < target_count and attempts < 3:
+        attempts += 1
+        needed = target_count - len(existing) - len(generated)
+        batch = await _build_questions_for_project(
+            project,
+            existing_questions=prompt_history,
+            target_count=needed,
+        )
+        if not batch:
+            break
+        generated.extend(batch)
+        prompt_history.extend(batch)
+    return generated
 
 
 async def _run_question_job(job_id: str, project_id: str):
@@ -60,9 +83,11 @@ async def _run_question_job(job_id: str, project_id: str):
             "updated_at": _now_iso(),
         })
         existing = get_questions(project_id)
-        questions = await _build_questions_for_project(project, existing_questions=existing)
-        target_count = max(1, min(int(project.get("question_count") or len(questions) or 8), 30))
+        target_count = max(1, min(int(project.get("question_count") or len(existing) or 8), 30))
+        questions = await _generate_until_target(project, existing, target_count)
         questions = merge_generated_questions(project_id, questions, target_count)
+        if len(questions) < target_count:
+            raise RuntimeError(f"LLM only generated {len(questions)} of {target_count} requested questions")
         update_generation_job(job_id, {
             "status": "done",
             "message": "Questions generated",
@@ -70,9 +95,15 @@ async def _run_question_job(job_id: str, project_id: str):
             "finished_at": _now_iso(),
         })
     except Exception as exc:
+        current_count = 0
+        try:
+            current_count = len(get_questions(project_id))
+        except Exception:
+            current_count = 0
         update_generation_job(job_id, {
             "status": "error",
             "message": str(exc),
+            "question_count": current_count,
             "finished_at": _now_iso(),
         })
 
@@ -221,8 +252,8 @@ async def api_generate_questions(project_id: str):
         raise HTTPException(404, "Project not found")
 
     existing = get_questions(project_id)
-    generated = await _build_questions_for_project(project, existing_questions=existing)
-    target_count = max(1, min(int(project.get("question_count") or len(generated) or 8), 30))
+    target_count = max(1, min(int(project.get("question_count") or len(existing) or 8), 30))
+    generated = await _generate_until_target(project, existing, target_count)
     questions = merge_generated_questions(project_id, generated, target_count)
     return {"questions": questions}
 

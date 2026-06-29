@@ -1,41 +1,26 @@
 import { S } from './state.js';
 import { api, getApiKey, getAuditorName, setAuditorName, openSSE, uploadApi } from './api.js';
+import { $, $$, closeSidebar, esc, hideLoading, isMobileViewport, showLoading, showToast, toggleSidebar } from './ui.js?v=2026.06.29.28';
+import { createProjectsModule } from './projects.js?v=2026.06.29.28';
 
 // ─── Helpers ─────────────────────────────────────────────
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => document.querySelectorAll(sel);
+const Projects = createProjectsModule({
+  S,
+  $,
+  api,
+  esc,
+  showToast,
+  showLoading,
+  hideLoading,
+  getAuditorName,
+  navigate,
+  loadFrameworks,
+  loadTemplates,
+  fillSetupForm,
+  restoreProjectJobs,
+});
 
-function showToast(msg, type = 'error') {
-  const t = $('#toast');
-  t.textContent = msg;
-  t.className = `toast toast-${type} show`;
-  setTimeout(() => t.classList.remove('show'), 4000);
-}
-
-function showLoading(text = '處理中...') {
-  $('#loading-text').textContent = text;
-  $('#loading-overlay').classList.add('show');
-}
-function hideLoading() { $('#loading-overlay').classList.remove('show'); }
-
-function isMobileViewport() {
-  return window.matchMedia('(max-width: 768px)').matches;
-}
-
-function setSidebarOpen(open) {
-  $('#sidebar')?.classList.toggle('open', open);
-  $('#sidebar-backdrop')?.classList.toggle('show', open);
-  document.body.classList.toggle('sidebar-open', open);
-}
-
-function toggleSidebar() {
-  setSidebarOpen(!$('#sidebar')?.classList.contains('open'));
-}
-
-function closeSidebar() {
-  setSidebarOpen(false);
-}
-
+const { loadProjects, createNewProject, openProject, deleteProject } = Projects;
 // ─── Navigation ──────────────────────────────────────────
 const VIEW_META = {
   dashboard: { title: '總覽', subtitle: '稽核專案管理' },
@@ -104,87 +89,6 @@ function renderDashboardStats() {
   ].map(s => `<div class="stat-card fade-in"><div class="stat-value" style="color:${s.c}">${s.v}</div><div class="stat-label">${s.l}</div></div>`).join('');
 }
 
-// ─── Projects ────────────────────────────────────────────
-async function loadProjects() {
-  try {
-    const list = await api('GET', '/projects');
-    const el = $('#projects-list');
-    if (!list.length) {
-      el.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📂</div><div class="empty-state-title">尚無專案</div></div>';
-      return;
-    }
-    el.innerHTML = list.map(p => `
-      <div class="card mb-12 fade-in" style="cursor:pointer" onclick="openProject('${p.id}')">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="flex items-center gap-8" style="flex-wrap:wrap">
-              <span style="font-weight:600">${esc(p.name)}</span>
-              ${renderProjectJobBadges(p)}
-            </div>
-            <div class="text-xs text-muted mt-8">${esc(p.organization || '')} · ${p.status} · ${p.created_at?.slice(0,10) || ''}</div>
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();deleteProject('${p.id}')">刪除</button>
-        </div>
-      </div>`).join('');
-  } catch (e) { showToast('載入專案失敗：' + e.message); }
-}
-
-function renderProjectJobBadges(project) {
-  const jobs = project.jobs || {};
-  return [
-    renderProjectJobBadge('問題', jobs.questions),
-    renderProjectJobBadge('報告', jobs.report),
-  ].filter(Boolean).join('');
-}
-
-function renderProjectJobBadge(label, job) {
-  if (!job) return '';
-  const statusMap = {
-    running: '產生中',
-    done: '已完成',
-    error: '失敗',
-  };
-  const text = statusMap[job.status];
-  if (!text) return '';
-  return `<span class="job-badge job-${esc(job.status)}">${label}${text}</span>`;
-}
-
-async function createNewProject() {
-  showLoading('建立專案...');
-  try {
-    const p = await api('POST', '/projects', {
-      name: '',
-      auditor_name: getAuditorName(),
-      organization: '',
-    });
-    S.projectId = p.id;
-    S.project = p;
-    S.questions = [];
-    S.findings = null;
-    $('#project-name-display').textContent = p.name;
-    navigate('setup');
-    await Promise.all([loadFrameworks(), loadTemplates()]);
-  } catch (e) { showToast('建立失敗：' + e.message); }
-  finally { hideLoading(); }
-}
-
-async function openProject(id) {
-  showLoading('載入專案...');
-  try {
-    S.projectId = id;
-    S.project = await api('GET', `/projects/${id}`);
-    S.questions = await api('GET', `/projects/${id}/questions`);
-    $('#project-name-display').textContent = S.project.name;
-    if (S.project.frameworks) S.frameworks = [...S.project.frameworks];
-    fillSetupForm();
-    restoreProjectJobs(S.project.jobs || {});
-    if (S.questionGeneration.status === 'running' && S.questionGeneration.projectId === id) navigate('record');
-    else if (S.questions.length > 0) navigate('record');
-    else navigate('setup');
-  } catch (e) { showToast('載入失敗：' + e.message); }
-  finally { hideLoading(); }
-}
-
 function jobStartedAt(job) {
   const started = Date.parse(job.created_at || job.updated_at || '');
   return Number.isFinite(started) ? started : Date.now();
@@ -206,6 +110,17 @@ function restoreProjectJobs(jobs) {
     $('#nav-record-badge').textContent = '…';
     pollQuestionGeneration(questionJob.job_id, S.projectId);
     S.questionPollTimer = setInterval(() => pollQuestionGeneration(questionJob.job_id, S.projectId), 2000);
+  } else if (questionJob?.status === 'error') {
+    S.questionGeneration = {
+      projectId: S.projectId,
+      jobId: questionJob.job_id,
+      status: 'error',
+      message: questionJob.message || '產生問題失敗',
+      startedAt: jobStartedAt(questionJob),
+      questionCount: questionJob.question_count || questionJob.result_count || 0,
+      targetCount: S.project?.question_count || 0,
+      promise: null,
+    };
   }
 
   const reportJob = jobs.report;
@@ -225,15 +140,6 @@ function restoreProjectJobs(jobs) {
   }
 }
 
-async function deleteProject(id) {
-  if (!confirm('確定要刪除此專案？')) return;
-  try {
-    await api('DELETE', `/projects/${id}`);
-    if (S.projectId === id) { S.projectId = null; S.project = null; S.questions = []; }
-    loadProjects();
-  } catch (e) { showToast('刪除失敗：' + e.message); }
-}
-
 function fillSetupForm() {
   if (!S.project) return;
   const p = S.project;
@@ -245,7 +151,8 @@ function fillSetupForm() {
   $('#context-input').value = p.context || '';
   const templateSelect = $('#template-select');
   if (templateSelect) templateSelect.value = p.template_id || '';
-  if (p.frameworks?.length) renderFrameworkChecks(p.frameworks);
+  S.frameworks = p.frameworks?.length ? [...p.frameworks] : [];
+  renderFrameworkChecks(S.frameworks);
 }
 
 // ─── Audit Templates ─────────────────────────────────────
@@ -299,13 +206,10 @@ function applyTemplate(templateId) {
 async function loadFrameworks() {
   try {
     const fws = await api('GET', '/frameworks');
-    // Only reset S.frameworks if it's empty (first load or new project)
-    if (!S.frameworks.length) {
-      S.frameworks = S.project?.frameworks?.length ? [...S.project.frameworks] : [];
-      // If still empty, use primary defaults
-      if (!S.frameworks.length) {
-        S.frameworks = fws.filter(fw => fw.primary).map(fw => fw.id);
-      }
+    if (S.project?.frameworks?.length) {
+      S.frameworks = [...S.project.frameworks];
+    } else if (!S.frameworks.length) {
+      S.frameworks = fws.filter(fw => fw.primary).map(fw => fw.id);
     }
     const el = $('#framework-list');
     el.innerHTML = fws.map(fw => {
@@ -334,6 +238,14 @@ function renderFrameworkChecks(selected) {
 function onFrameworkToggle(id, checked) {
   if (checked && !S.frameworks.includes(id)) S.frameworks.push(id);
   else S.frameworks = S.frameworks.filter(f => f !== id);
+}
+
+function syncFrameworksFromDom() {
+  const boxes = [...$$('#framework-list input[type=checkbox]')];
+  if (boxes.length) {
+    S.frameworks = boxes.filter(cb => cb.checked).map(cb => cb.value);
+  }
+  return [...S.frameworks];
 }
 
 // ─── Framework Admin ────────────────────────────────────
@@ -518,6 +430,7 @@ async function deleteControlAdmin(id) {
 
 // ─── Start Audit ─────────────────────────────────────────
 async function startAudit() {
+  const selectedFrameworks = syncFrameworksFromDom();
   const name = $('#project-name').value.trim();
   const org = $('#project-org').value.trim();
   const scope = $('#scope-input').value.trim();
@@ -527,7 +440,7 @@ async function startAudit() {
 
   if (!scope) { showToast('請輸入稽核範圍'); return; }
   if (!context) { showToast('請輸入稽核情境'); return; }
-  if (S.frameworks.length === 0) { showToast('請至少選擇一個法規框架'); return; }
+  if (selectedFrameworks.length === 0) { showToast('請至少選擇一個法規框架'); return; }
 
   showLoading('儲存專案設定...');
   try {
@@ -539,7 +452,7 @@ async function startAudit() {
       await api('PATCH', `/projects/${S.projectId}`, { name, organization: org, question_count: questionCount });
     }
 
-    await api('POST', `/projects/${S.projectId}/framework`, { frameworks: S.frameworks, responsibility_level: respLevel || null });
+    await api('POST', `/projects/${S.projectId}/framework`, { frameworks: selectedFrameworks, responsibility_level: respLevel || null });
     await api('PATCH', `/projects/${S.projectId}`, { template_id: $('#template-select')?.value || null, question_count: questionCount });
     await api('POST', `/projects/${S.projectId}/scope`, { scope, context });
 
@@ -641,11 +554,22 @@ async function pollQuestionGeneration(jobId, projectId) {
       return;
     }
 
+    try {
+      S.questions = await api('GET', `/projects/${projectId}/questions`);
+      if (S.projectId === projectId) {
+        S.project = await api('GET', `/projects/${projectId}`);
+        $('#project-name-display').textContent = S.project.name;
+      }
+    } catch (_) {}
+
     S.questionGeneration = {
       ...S.questionGeneration,
       jobId,
+      projectId,
       status: 'error',
       message: job.message || '產生問題失敗',
+      questionCount: S.questions.length || job.question_count || job.result_count || 0,
+      targetCount: S.project?.question_count || 0,
       promise: null,
     };
     $('#nav-record-badge').textContent = '!';
@@ -676,6 +600,7 @@ function renderRecordView() {
   }
   $('#record-empty').classList.add('hidden');
   $('#record-content').classList.remove('hidden');
+  renderQuestionGenerationWarning();
   updateProgress();
   renderQuestionPanels();
 }
@@ -712,11 +637,17 @@ function renderRecordEmptyState() {
   }
 
   if (isCurrentJob && job.status === 'error') {
+    const target = Number(job.targetCount || S.project?.question_count || 0);
+    const actual = Number(job.questionCount || S.questions.length || 0);
+    const countLine = target ? `已產出 ${actual} / 目標 ${target} 題` : `已產出 ${actual} 題`;
     el.innerHTML = `
       <div class="empty-state-icon">!</div>
       <div class="empty-state-title">產生失敗</div>
-      <div class="empty-state-desc">${esc(job.message)}</div>
-      <button class="btn btn-primary" onclick="startQuestionGeneration('${S.projectId}')">重新產生</button>
+      <div class="empty-state-desc">${esc(countLine)}<br>${esc(job.message)}</div>
+      <div class="flex gap-8" style="justify-content:center">
+        <button class="btn btn-primary" onclick="startQuestionGeneration('${S.projectId}')">重新產生</button>
+        <button class="btn btn-ghost" onclick="addNewQuestion()">手動新增問題</button>
+      </div>
     `;
     return;
   }
@@ -726,6 +657,33 @@ function renderRecordEmptyState() {
     <div class="empty-state-title">尚未產生稽核問題</div>
     <div class="empty-state-desc">請先完成專案設定</div>
     <button class="btn btn-primary" onclick="navigate('setup')">前往專案設定</button>
+  `;
+}
+
+function renderQuestionGenerationWarning() {
+  const el = $('#question-generation-warning');
+  if (!el) return;
+  const job = S.questionGeneration;
+  const isCurrentJob = job.projectId && job.projectId === S.projectId;
+  const target = Number(job.targetCount || S.project?.question_count || 0);
+  const actual = Number(S.questions.length || job.questionCount || 0);
+
+  if (!isCurrentJob || job.status !== 'error' || !target || actual >= target) {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div>
+      <div class="alert-title">稽核問題只產出 ${actual} / ${target} 題</div>
+      <div class="alert-desc">${esc(job.message || 'LLM 回傳題數不足，系統已保留有效題目。')}</div>
+    </div>
+    <div class="flex gap-8 flex-wrap">
+      <button class="btn btn-ghost btn-sm" onclick="startQuestionGeneration('${S.projectId}')">重新產生不足題數</button>
+      <button class="btn btn-ghost btn-sm" onclick="addNewQuestion()">手動新增問題</button>
+    </div>
   `;
 }
 
@@ -1231,13 +1189,6 @@ async function pollReportGeneration(jobId, projectId, format) {
     };
     if (S.currentView === 'report') renderReportView();
   }
-}
-
-function esc(s) {
-  if (!s) return '';
-  const d = document.createElement('div');
-  d.textContent = String(s);
-  return d.innerHTML;
 }
 
 // ─── Init ────────────────────────────────────────────────

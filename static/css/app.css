@@ -393,6 +393,7 @@ body {
 .job-badge {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   height: 22px;
   padding: 0 8px;
   border-radius: 999px;
@@ -708,6 +709,33 @@ body {
 .toast.show { transform: translateY(0); opacity: 1; }
 .toast-error { background: var(--danger); color: white; }
 .toast-success { background: var(--success); color: white; }
+
+.alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.alert-warning {
+  border-color: rgba(245,158,11,0.38);
+  background: rgba(245,158,11,0.10);
+}
+
+.alert-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--warning);
+}
+
+.alert-desc {
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
 
 /* ─── Empty State ─────────────────────────────────────── */
 .empty-state {
