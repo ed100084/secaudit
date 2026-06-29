@@ -724,9 +724,12 @@ function renderRecordEmptyState() {
 }
 
 function updateProgress() {
-  const total = S.questions.length;
-  const done = S.questions.filter(q => q.compliance_status).length;
-  $('#record-progress').textContent = `進度：${done} / ${total}`;
+  const active = S.questions.filter(q => q.compliance_status !== 'skipped');
+  const total = active.length;
+  const done = active.filter(q => q.compliance_status).length;
+  const skipped = S.questions.length - total;
+  const label = skipped ? `進度：${done} / ${total}（跳過 ${skipped} 題）` : `進度：${done} / ${total}`;
+  $('#record-progress').textContent = label;
   $('#progress-bar').style.width = total ? `${(done / total * 100).toFixed(0)}%` : '0%';
   $('#nav-record-badge').textContent = done;
 }
@@ -735,12 +738,13 @@ function renderQuestionPanels() {
   const el = $('#question-panels');
   el.innerHTML = S.questions.map((q, i) => {
     const status = q.compliance_status || 'pending';
+    const isSkipped = status === 'skipped';
     const isActive = i === S.activeQuestionIndex;
     return `
-    <div class="q-card ${isActive ? 'active' : ''} mb-12 fade-in" id="qcard-${i}">
+    <div class="q-card ${isActive ? 'active' : ''} ${isSkipped ? 'skipped-card' : ''} mb-12 fade-in" id="qcard-${i}">
       <div class="q-card-header" onclick="toggleQuestion(${i})">
         <span class="q-num">Q${i + 1}</span>
-        <span class="q-title">${esc(q.text?.slice(0, 80) || '')}</span>
+        <span class="q-title">${esc(q.text?.slice(0, 80) || '')}${isSkipped ? ' (已跳過)' : ''}</span>
         <span class="q-status-dot ${status}"></span>
       </div>
       ${isActive ? renderQuestionBody(q, i) : ''}
@@ -756,6 +760,7 @@ function renderQuestionBody(q, idx) {
     { val: 'partial', label: '△ 部分符合' },
     { val: 'non_compliant', label: '✗ 不符合' },
     { val: 'not_applicable', label: '— 不適用' },
+    { val: 'skipped', label: '⊘ 跳過' },
   ];
   return `
   <div class="q-card-body">
@@ -895,11 +900,27 @@ function renderFindings() {
 }
 
 // ─── Utils ───────────────────────────────────────────────
-function renderReportView() {
+async function renderReportView() {
   syncReportStatusTimer();
   if (S.findings) {
     renderFindings();
     return;
+  }
+
+  // Try loading the latest report from DB if we have a project
+  if (S.projectId && S.reportGeneration.status !== 'running') {
+    try {
+      const reports = await api('GET', `/projects/${S.projectId}/findings`);
+      if (reports?.length) {
+        const latest = reports[0];
+        S.findings = latest.report_data || null;
+        S.findingsFormat = latest.report_format || S.reportFormat;
+        S.reportFormat = S.findingsFormat;
+        const sel = $('#report-format');
+        if (sel) sel.value = S.reportFormat;
+        if (S.findings) { renderFindings(); return; }
+      }
+    } catch (_) {}
   }
 
   const el = $('#report-content');

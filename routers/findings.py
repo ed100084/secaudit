@@ -42,9 +42,10 @@ async def _build_findings_for_project(project_id: str, report_format: str) -> di
     if not project:
         raise RuntimeError("Project not found")
 
-    questions = get_questions(project_id)
+    all_questions = get_questions(project_id)
+    questions = [q for q in all_questions if q.get("compliance_status") != "skipped"]
     if not questions:
-        raise RuntimeError("No questions found")
+        raise RuntimeError("No questions found (all skipped or empty)")
 
     buffer = []
     repaired = None

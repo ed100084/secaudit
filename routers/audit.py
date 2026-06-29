@@ -11,7 +11,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from config import settings
 from db import (
-    get_project, update_project, save_questions, get_questions,
+    get_project, update_project, save_questions, merge_generated_questions, get_questions,
     update_question, get_quick_phrases,
     list_audit_frameworks, get_audit_framework, create_audit_framework,
     update_audit_framework, delete_audit_framework, list_audit_controls,
@@ -59,7 +59,8 @@ async def _run_question_job(job_id: str, project_id: str):
             "updated_at": _now_iso(),
         })
         questions = await _build_questions_for_project(project)
-        save_questions(project_id, questions)
+        target_count = max(1, min(int(project.get("question_count") or len(questions) or 8), 30))
+        questions = merge_generated_questions(project_id, questions, target_count)
         update_generation_job(job_id, {
             "status": "done",
             "message": "Questions generated",
@@ -217,8 +218,9 @@ async def api_generate_questions(project_id: str):
     if not project:
         raise HTTPException(404, "Project not found")
 
-    questions = await _build_questions_for_project(project)
-    save_questions(project_id, questions)
+    generated = await _build_questions_for_project(project)
+    target_count = max(1, min(int(project.get("question_count") or len(generated) or 8), 30))
+    questions = merge_generated_questions(project_id, generated, target_count)
     return {"questions": questions}
 
 

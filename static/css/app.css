@@ -533,7 +533,11 @@ body {
 .q-status-dot.partial { background: var(--warning); }
 .q-status-dot.non_compliant { background: var(--danger); }
 .q-status-dot.not_applicable { background: var(--text-muted); }
+.q-status-dot.skipped { background: transparent; border: 2px dashed var(--text-muted); }
 .q-status-dot.pending { background: var(--bg-hover); border: 2px solid var(--text-muted); }
+
+.q-card.skipped-card { opacity: 0.5; }
+.q-card.skipped-card .q-card-header { text-decoration: line-through; }
 
 .q-card-body { padding: 16px; border-top: 1px solid var(--border); }
 

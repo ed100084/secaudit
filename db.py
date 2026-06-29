@@ -648,18 +648,93 @@ def save_questions(project_id: str, questions: list):
         )
 
 
+def merge_generated_questions(project_id: str, generated_questions: list, target_count: int) -> list:
+    """Append generated questions without overwriting existing answers."""
+    now = _now()
+    with _db() as conn:
+        existing_rows = conn.execute(
+            "SELECT * FROM questions WHERE project_id = ? ORDER BY sort_order",
+            (project_id,),
+        ).fetchall()
+        existing_count = len(existing_rows)
+        if existing_count >= target_count:
+            return _question_rows_to_dicts(existing_rows)
+
+        seen = {
+            _question_signature(row["text"], row["reference"], row["source_framework"])
+            for row in existing_rows
+        }
+        append_count = target_count - existing_count
+        appended = 0
+        for q in generated_questions:
+            if appended >= append_count:
+                break
+            signature = _question_signature(
+                q.get("text", ""),
+                q.get("reference", ""),
+                q.get("source_framework", ""),
+            )
+            if not signature or signature in seen:
+                continue
+            seen.add(signature)
+            conn.execute(
+                """INSERT INTO questions (id, project_id, sort_order, text, category,
+                   source_framework, reference, dimension, compliance_status,
+                   response_text, auditor_notes, evidence, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    q.get("id", str(uuid.uuid4())),
+                    project_id,
+                    existing_count + appended,
+                    q.get("text", ""),
+                    q.get("category", ""),
+                    q.get("source_framework", ""),
+                    q.get("reference", ""),
+                    q.get("dimension", "interview"),
+                    None,
+                    "",
+                    "",
+                    json.dumps(q.get("evidence", [])),
+                    now,
+                ),
+            )
+            appended += 1
+        conn.execute(
+            "UPDATE projects SET status = 'in_progress', updated_at = ? WHERE id = ?",
+            (now, project_id),
+        )
+        rows = conn.execute(
+            "SELECT * FROM questions WHERE project_id = ? ORDER BY sort_order",
+            (project_id,),
+        ).fetchall()
+    return _question_rows_to_dicts(rows)
+
+
+def _question_signature(text: str, reference: str = "", source_framework: str = "") -> str:
+    normalized_text = " ".join((text or "").split()).strip().lower()
+    if not normalized_text:
+        return ""
+    normalized_ref = " ".join((reference or "").split()).strip().lower()
+    normalized_source = " ".join((source_framework or "").split()).strip().lower()
+    return f"{normalized_source}|{normalized_ref}|{normalized_text[:180]}"
+
+
+def _question_rows_to_dicts(rows) -> list:
+    result = []
+    for row in rows:
+        d = dict(row)
+        d["evidence"] = json.loads(d["evidence"])
+        result.append(d)
+    return result
+
+
 def get_questions(project_id: str) -> list:
     with _db() as conn:
         rows = conn.execute(
             "SELECT * FROM questions WHERE project_id = ? ORDER BY sort_order",
             (project_id,),
         ).fetchall()
-    result = []
-    for r in rows:
-        d = dict(r)
-        d["evidence"] = json.loads(d["evidence"])
-        result.append(d)
-    return result
+    return _question_rows_to_dicts(rows)
 
 
 def update_question(question_id: str, data: dict) -> bool:
