@@ -66,7 +66,7 @@ function navigate(view) {
   if (view === 'record') renderRecordView();
   if (view === 'report') renderReportView();
   if (view === 'setup') {
-    if (S.frameworks.length === 0) loadFrameworks();
+    loadFrameworks();
     if (S.templates.length === 0) loadTemplates();
   }
 }
