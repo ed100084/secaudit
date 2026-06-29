@@ -180,6 +180,45 @@ def _repair_truncated_json(text: str) -> str:
     raise ValueError("JSON 無法修復")
 
 
+def _extract_json_array(text: str) -> str:
+    """Try to extract a JSON array from text that may contain non-JSON preamble/postamble."""
+    # Find the first [ and last ]
+    start = text.find('[')
+    end = text.rfind(']')
+    if start >= 0 and end > start:
+        candidate = text[start:end + 1]
+        try:
+            json.loads(candidate)
+            return candidate
+        except json.JSONDecodeError:
+            # Try repair on the extracted portion
+            try:
+                return _repair_truncated_json(candidate)
+            except ValueError:
+                pass
+    # Try finding a JSON object instead
+    start = text.find('{')
+    end = text.rfind('}')
+    if start >= 0 and end > start:
+        candidate = text[start:end + 1]
+        # Wrap in array if it's a single object
+        try:
+            obj = json.loads(candidate)
+            if isinstance(obj, dict):
+                return json.dumps([obj])
+            return candidate
+        except json.JSONDecodeError:
+            try:
+                repaired = _repair_truncated_json(candidate)
+                obj = json.loads(repaired)
+                if isinstance(obj, dict):
+                    return json.dumps([obj])
+                return repaired
+            except (ValueError, json.JSONDecodeError):
+                pass
+    raise ValueError("JSON 無法從回應中擷取")
+
+
 def _build_qa_text(questions: list, responses: list) -> str:
     """將問題與回覆組合成文字供 LLM 分析"""
     resp_map = {}
@@ -283,8 +322,13 @@ async def generate_questions(
     ]
 
     raw = await _call_llm(messages, max_tokens=max(2048, min(8192, target_count * 700)), temperature=0.7)
+    logger.info(f"[generate_questions] raw length={len(raw)}, first 200 chars: {raw[:200]}")
     raw = _strip_json_fences(raw)
-    raw = _repair_truncated_json(raw)
+    try:
+        raw = _repair_truncated_json(raw)
+    except ValueError:
+        logger.warning("[generate_questions] repair failed, trying extract")
+        raw = _extract_json_array(raw)
     questions = json.loads(raw)
 
     if not isinstance(questions, list):
