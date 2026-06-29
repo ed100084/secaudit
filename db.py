@@ -139,6 +139,7 @@ def _ensure_schema(conn: sqlite3.Connection):
     _ensure_project_columns(conn)
     _seed_quick_phrases(conn)
     _seed_audit_frameworks(conn)
+    _cleanup_stale_jobs(conn)
 
 
 def _ensure_project_columns(conn: sqlite3.Connection):
@@ -181,6 +182,16 @@ def _seed_audit_frameworks(conn: sqlite3.Connection):
             primary_flag, enabled, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         rows,
+    )
+
+
+def _cleanup_stale_jobs(conn: sqlite3.Connection):
+    """Mark running jobs as interrupted on startup (container restart)."""
+    now = _now()
+    conn.execute(
+        """UPDATE generation_jobs SET status = 'error', message = 'Interrupted by container restart',
+           finished_at = ? WHERE status = 'running'""",
+        (now,),
     )
 
 
