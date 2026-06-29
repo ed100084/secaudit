@@ -111,7 +111,10 @@ async def _stream_llm(messages: list, max_tokens: int = 8192, temperature: float
                     break
                 try:
                     chunk_data = json.loads(data)
-                    delta = chunk_data.get("choices", [{}])[0].get("delta", {})
+                    choices = chunk_data.get("choices") or []
+                    if not choices:
+                        continue
+                    delta = choices[0].get("delta") or {}
                     content = delta.get("content", "")
                     if content:
                         yield content

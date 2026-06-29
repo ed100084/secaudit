@@ -94,7 +94,7 @@ async def _run_finding_job(job_id: str, project_id: str, report_format: str):
 @router.get("/projects/{project_id}/findings/stream")
 async def api_stream_findings(
     project_id: str,
-    format: str = Query("iia5c"),
+    format: str = Query("gov"),
     api_key: str = Query(None),
 ):
     # SSE 用 query param 驗證
@@ -121,7 +121,7 @@ async def api_stream_findings(
 
 
 @router.post("/projects/{project_id}/findings/jobs")
-async def api_start_finding_job(project_id: str, format: str = Query("iia5c")):
+async def api_start_finding_job(project_id: str, format: str = Query("gov")):
     if not get_project(project_id):
         raise HTTPException(404, "Project not found")
     if not get_questions(project_id):
