@@ -83,7 +83,21 @@ async def _call_llm(messages: list, max_tokens: int = 4096, temperature: float =
                     continue
                 resp.raise_for_status()
                 data = resp.json()
-                return data["choices"][0]["message"]["content"]
+                choices = data.get("choices") or []
+                if not choices:
+                    logger.warning(f"LLM returned empty choices: {str(data)[:500]}")
+                    if attempt < 2:
+                        await asyncio.sleep(3)
+                        continue
+                    raise RuntimeError("LLM 回傳空 choices")
+                content = (choices[0].get("message") or {}).get("content") or ""
+                if not content.strip():
+                    logger.warning(f"LLM returned empty content: {str(data)[:500]}")
+                    if attempt < 2:
+                        await asyncio.sleep(3)
+                        continue
+                    raise RuntimeError("LLM 回傳空內容")
+                return content
             except httpx.HTTPStatusError as e:
                 if attempt < 2 and getattr(e.response, "status_code", None) in (429, 503):
                     await asyncio.sleep(5 * (2 ** attempt))
