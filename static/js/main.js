@@ -299,11 +299,17 @@ function applyTemplate(templateId) {
 async function loadFrameworks() {
   try {
     const fws = await api('GET', '/frameworks');
-    S.frameworks = S.project?.frameworks || [];
+    // Only reset S.frameworks if it's empty (first load or new project)
+    if (!S.frameworks.length) {
+      S.frameworks = S.project?.frameworks?.length ? [...S.project.frameworks] : [];
+      // If still empty, use primary defaults
+      if (!S.frameworks.length) {
+        S.frameworks = fws.filter(fw => fw.primary).map(fw => fw.id);
+      }
+    }
     const el = $('#framework-list');
     el.innerHTML = fws.map(fw => {
-      const checked = S.frameworks.includes(fw.id) || fw.primary;
-      if (checked && !S.frameworks.includes(fw.id)) S.frameworks.push(fw.id);
+      const checked = S.frameworks.includes(fw.id);
       return `
       <label class="framework-card">
         <input type="checkbox" class="sr-only" value="${fw.id}" ${checked ? 'checked' : ''} onchange="onFrameworkToggle('${fw.id}', this.checked)">
