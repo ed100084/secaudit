@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SecAudit — 資安稽核現場工具</title>
   <meta name="description" content="資安稽核現場記錄與報告產生工具">
-  <link rel="stylesheet" href="css/app.css?v=2026.06.29.16">
+  <link rel="stylesheet" href="css/app.css?v=2026.06.29.17">
 </head>
 <body>
 <div class="app-layout">
@@ -16,7 +16,7 @@
       <div class="sidebar-logo">SA</div>
       <div>
         <div class="sidebar-title">SecAudit</div>
-        <div class="sidebar-version" id="app-version">v2026.06.29.16</div>
+        <div class="sidebar-version" id="app-version">v2026.06.29.17</div>
       </div>
       <button class="sidebar-close-btn" type="button" aria-label="關閉選單" onclick="closeSidebar()">
         <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -197,6 +197,10 @@
             </div>
           </div>
 
+          <!-- Question actions -->
+          <div class="flex gap-8 mb-12">
+            <button class="btn btn-ghost btn-sm" onclick="addNewQuestion()">＋ 手動新增問題</button>
+          </div>
           <!-- Question list + Detail -->
           <div id="question-panels"></div>
         </div>
@@ -211,14 +215,13 @@
               <div class="card-subtitle" id="report-format-label">政府機關格式</div>
             </div>
             <div class="flex gap-8">
+              <select class="form-select" id="report-history" style="width:auto" onchange="loadReportById(this.value)"></select>
               <select class="form-select" id="report-format" style="width:auto" onchange="onFormatChange(this.value)">
                 <option value="gov" selected>政府機關格式</option>
                 <option value="iia5c">IIA 5C 格式</option>
               </select>
-              <button class="btn btn-primary btn-sm" onclick="generateReport()">
-                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                產生報告
-              </button>
+              <button class="btn btn-primary btn-sm" onclick="generateReport()">產生報告</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteCurrentReport()">刪除</button>
             </div>
           </div>
         </div>
@@ -363,6 +366,6 @@
 <!-- Toast -->
 <div class="toast toast-error" id="toast"></div>
 
-<script type="module" src="js/main.js?v=2026.06.29.16"></script>
+<script type="module" src="js/main.js?v=2026.06.29.17"></script>
 </body>
 </html>

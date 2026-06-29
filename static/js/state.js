@@ -12,6 +12,8 @@ export const S = {
   quickPhrases: [],
   findings: null,
   findingsFormat: null,
+  selectedFindingId: null,
+  reportList: [],
   reportFormat: 'gov',
   activeQuestionIndex: 0,
   autoSaveTimer: null,

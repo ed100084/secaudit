@@ -12,7 +12,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from config import settings
 from db import (
     get_project, update_project, save_questions, merge_generated_questions, get_questions,
-    update_question, get_quick_phrases,
+    update_question, delete_question_by_id, add_question, get_quick_phrases,
     list_audit_frameworks, get_audit_framework, create_audit_framework,
     update_audit_framework, delete_audit_framework, list_audit_controls,
     create_audit_control, update_audit_control, delete_audit_control,
@@ -20,7 +20,7 @@ from db import (
     get_active_generation_job,
 )
 from models import (
-    FrameworkSelection, ScopeInput, QuestionUpdate, QuestionPatch,
+    FrameworkSelection, ScopeInput, QuestionCreate, QuestionUpdate, QuestionPatch,
     ResponsesInput, AuditFrameworkCreate, AuditFrameworkUpdate,
     AuditControlCreate, AuditControlUpdate,
 )
@@ -266,11 +266,25 @@ def api_update_questions(project_id: str, body: QuestionUpdate):
     return {"ok": True, "count": len(questions)}
 
 
+@router.post("/projects/{project_id}/questions")
+def api_add_question(project_id: str, body: QuestionCreate):
+    if not get_project(project_id):
+        raise HTTPException(404, "Project not found")
+    return add_question(project_id, body.model_dump())
+
+
 @router.patch("/questions/{question_id}")
 def api_patch_question(question_id: str, body: QuestionPatch):
     """自動儲存：更新單一問題的回覆/狀態/備註"""
     data = body.model_dump(exclude_none=True)
     if not update_question(question_id, data):
+        raise HTTPException(404, "Question not found")
+    return {"ok": True}
+
+
+@router.delete("/questions/{question_id}")
+def api_delete_question(question_id: str):
+    if not delete_question_by_id(question_id):
         raise HTTPException(404, "Question not found")
     return {"ok": True}
 

@@ -728,6 +728,45 @@ def _question_rows_to_dicts(rows) -> list:
     return result
 
 
+def delete_question_by_id(question_id: str) -> bool:
+    with _db() as conn:
+        cursor = conn.execute("DELETE FROM questions WHERE id = ?", (question_id,))
+        return cursor.rowcount > 0
+
+
+def add_question(project_id: str, data: dict) -> dict:
+    now = _now()
+    question_id = data.get("id") or str(uuid.uuid4())
+    with _db() as conn:
+        max_order = conn.execute(
+            "SELECT COALESCE(MAX(sort_order), -1) FROM questions WHERE project_id = ?",
+            (project_id,),
+        ).fetchone()[0]
+        conn.execute(
+            """INSERT INTO questions (id, project_id, sort_order, text, category,
+               source_framework, reference, dimension, compliance_status,
+               response_text, auditor_notes, evidence, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                question_id, project_id, max_order + 1,
+                data.get("text", ""),
+                data.get("category", ""),
+                data.get("source_framework", ""),
+                data.get("reference", ""),
+                data.get("dimension", "manual"),
+                None, "", "", "[]", now,
+            ),
+        )
+        conn.execute(
+            "UPDATE projects SET status = 'in_progress', updated_at = ? WHERE id = ?",
+            (now, project_id),
+        )
+        row = conn.execute("SELECT * FROM questions WHERE id = ?", (question_id,)).fetchone()
+    d = dict(row)
+    d["evidence"] = json.loads(d["evidence"])
+    return d
+
+
 def get_questions(project_id: str) -> list:
     with _db() as conn:
         rows = conn.execute(
@@ -786,6 +825,17 @@ def save_findings(project_id: str, report_format: str, report_data: dict) -> str
     return finding_id
 
 
+def get_finding(finding_id: str) -> Optional[dict]:
+    with _db() as conn:
+        row = conn.execute("SELECT * FROM findings WHERE id = ?", (finding_id,)).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    if d["report_data"]:
+        d["report_data"] = json.loads(d["report_data"])
+    return d
+
+
 def get_findings(project_id: str) -> list:
     with _db() as conn:
         rows = conn.execute(
@@ -799,6 +849,24 @@ def get_findings(project_id: str) -> list:
             d["report_data"] = json.loads(d["report_data"])
         result.append(d)
     return result
+
+
+def update_finding(finding_id: str, report_data: dict) -> bool:
+    with _db() as conn:
+        row = conn.execute("SELECT id FROM findings WHERE id = ?", (finding_id,)).fetchone()
+        if not row:
+            return False
+        conn.execute(
+            "UPDATE findings SET report_data = ? WHERE id = ?",
+            (json.dumps(report_data, ensure_ascii=False), finding_id),
+        )
+    return True
+
+
+def delete_finding(finding_id: str) -> bool:
+    with _db() as conn:
+        cursor = conn.execute("DELETE FROM findings WHERE id = ?", (finding_id,))
+        return cursor.rowcount > 0
 
 
 # ═══════════════════════════════════════════════════════

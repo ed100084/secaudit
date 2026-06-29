@@ -90,6 +90,13 @@ class Question(BaseModel):
     dimension: str = "systemic"
 
 
+class QuestionCreate(BaseModel):
+    text: str
+    category: str = ""
+    source_framework: str = ""
+    reference: str = ""
+
+
 class QuestionUpdate(BaseModel):
     questions: List[Question]
 

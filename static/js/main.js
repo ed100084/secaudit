@@ -724,12 +724,9 @@ function renderRecordEmptyState() {
 }
 
 function updateProgress() {
-  const active = S.questions.filter(q => q.compliance_status !== 'skipped');
-  const total = active.length;
-  const done = active.filter(q => q.compliance_status).length;
-  const skipped = S.questions.length - total;
-  const label = skipped ? `進度：${done} / ${total}（跳過 ${skipped} 題）` : `進度：${done} / ${total}`;
-  $('#record-progress').textContent = label;
+  const total = S.questions.length;
+  const done = S.questions.filter(q => q.compliance_status).length;
+  $('#record-progress').textContent = `進度：${done} / ${total}`;
   $('#progress-bar').style.width = total ? `${(done / total * 100).toFixed(0)}%` : '0%';
   $('#nav-record-badge').textContent = done;
 }
@@ -738,14 +735,14 @@ function renderQuestionPanels() {
   const el = $('#question-panels');
   el.innerHTML = S.questions.map((q, i) => {
     const status = q.compliance_status || 'pending';
-    const isSkipped = status === 'skipped';
     const isActive = i === S.activeQuestionIndex;
     return `
-    <div class="q-card ${isActive ? 'active' : ''} ${isSkipped ? 'skipped-card' : ''} mb-12 fade-in" id="qcard-${i}">
+    <div class="q-card ${isActive ? 'active' : ''} mb-12 fade-in" id="qcard-${i}">
       <div class="q-card-header" onclick="toggleQuestion(${i})">
         <span class="q-num">Q${i + 1}</span>
-        <span class="q-title">${esc(q.text?.slice(0, 80) || '')}${isSkipped ? ' (已跳過)' : ''}</span>
+        <span class="q-title">${esc(q.text?.slice(0, 80) || '')}</span>
         <span class="q-status-dot ${status}"></span>
+        <button class="btn-icon-sm" onclick="event.stopPropagation();deleteQuestion(${i})" title="刪除此題">✕</button>
       </div>
       ${isActive ? renderQuestionBody(q, i) : ''}
     </div>`;
@@ -760,11 +757,13 @@ function renderQuestionBody(q, idx) {
     { val: 'partial', label: '△ 部分符合' },
     { val: 'non_compliant', label: '✗ 不符合' },
     { val: 'not_applicable', label: '— 不適用' },
-    { val: 'skipped', label: '⊘ 跳過' },
   ];
   return `
   <div class="q-card-body">
     <div class="q-text">${esc(q.text || '')}</div>
+    <div class="flex gap-8 mb-8">
+      <button class="btn btn-ghost btn-sm" onclick="editQuestionText(${idx})">✎ 編輯問題</button>
+    </div>
     <div class="flex gap-8 mb-12">
       ${q.category ? `<span class="tag tag-category">${esc(q.category)}</span>` : ''}
       ${q.source_framework ? `<span class="tag tag-framework">${esc(q.source_framework)}</span>` : ''}
@@ -799,6 +798,48 @@ function setStatus(idx, status) {
   updateProgress();
   renderQuestionPanels();
   saveQuestion(idx);
+}
+
+// ─── Question CRUD ───────────────────────────────────────
+async function deleteQuestion(idx) {
+  const q = S.questions[idx];
+  if (!q) return;
+  if (!confirm(`確定刪除 Q${idx + 1}？`)) return;
+  try {
+    await api('DELETE', `/questions/${q.id}`);
+    S.questions.splice(idx, 1);
+    if (S.activeQuestionIndex >= S.questions.length) S.activeQuestionIndex = Math.max(0, S.questions.length - 1);
+    updateProgress();
+    renderQuestionPanels();
+    showToast('已刪除', 'success');
+  } catch (e) { showToast('刪除失敗：' + e.message); }
+}
+
+async function addNewQuestion() {
+  if (!S.projectId) return;
+  const text = prompt('請輸入問題內容：');
+  if (!text?.trim()) return;
+  try {
+    const q = await api('POST', `/projects/${S.projectId}/questions`, { text: text.trim() });
+    S.questions.push(q);
+    S.activeQuestionIndex = S.questions.length - 1;
+    updateProgress();
+    renderQuestionPanels();
+    showToast('已新增問題', 'success');
+  } catch (e) { showToast('新增失敗：' + e.message); }
+}
+
+async function editQuestionText(idx) {
+  const q = S.questions[idx];
+  if (!q) return;
+  const newText = prompt('編輯問題內容：', q.text);
+  if (newText === null || newText.trim() === q.text) return;
+  try {
+    await api('PATCH', `/questions/${q.id}`, { text: newText.trim() });
+    q.text = newText.trim();
+    renderQuestionPanels();
+    showToast('已更新', 'success');
+  } catch (e) { showToast('更新失敗：' + e.message); }
 }
 
 // ─── Quick Phrases ───────────────────────────────────────
@@ -855,6 +896,91 @@ async function saveQuestion(idx) {
 // ─── Report ──────────────────────────────────────────────
 function onFormatChange(val) { S.reportFormat = val; }
 
+async function loadReportList() {
+  if (!S.projectId) return;
+  try {
+    S.reportList = await api('GET', `/projects/${S.projectId}/findings`);
+  } catch (_) { S.reportList = []; }
+  const sel = $('#report-history');
+  if (!sel) return;
+  if (!S.reportList.length) {
+    sel.innerHTML = '<option value="">無歷史報告</option>';
+    return;
+  }
+  sel.innerHTML = S.reportList.map((r, i) => {
+    const date = r.created_at?.slice(0, 19).replace('T', ' ') || '';
+    const fmt = r.report_format === 'gov' ? '政府' : 'IIA5C';
+    const count = r.report_data?.findings?.length || 0;
+    return `<option value="${esc(r.id)}" ${r.id === S.selectedFindingId ? 'selected' : ''}>${fmt} ${date} (${count}項)</option>`;
+  }).join('');
+}
+
+async function loadReportById(findingId) {
+  if (!findingId) return;
+  try {
+    const report = await api('GET', `/findings/${findingId}`);
+    S.selectedFindingId = findingId;
+    S.findings = report.report_data;
+    S.findingsFormat = report.report_format;
+    S.reportFormat = report.report_format;
+    const fmtSel = $('#report-format');
+    if (fmtSel) fmtSel.value = S.reportFormat;
+    renderFindings();
+  } catch (e) { showToast('載入報告失敗：' + e.message); }
+}
+
+async function deleteCurrentReport() {
+  if (!S.selectedFindingId) { showToast('請先選擇報告'); return; }
+  if (!confirm('確定刪除此份報告？')) return;
+  try {
+    await api('DELETE', `/findings/${S.selectedFindingId}`);
+    S.findings = null;
+    S.selectedFindingId = null;
+    await loadReportList();
+    if (S.reportList.length) {
+      await loadReportById(S.reportList[0].id);
+    } else {
+      renderReportView();
+    }
+    showToast('報告已刪除', 'success');
+  } catch (e) { showToast('刪除失敗：' + e.message); }
+}
+
+async function saveReportEdit() {
+  if (!S.selectedFindingId || !S.findings) return;
+  try {
+    await api('PATCH', `/findings/${S.selectedFindingId}`, S.findings);
+    showToast('報告已儲存', 'success');
+  } catch (e) { showToast('儲存失敗：' + e.message); }
+}
+
+function editFindingSummary() {
+  if (!S.findings) return;
+  const newText = prompt('編輯摘要：', S.findings.executive_summary || '');
+  if (newText === null) return;
+  S.findings.executive_summary = newText;
+  renderFindings();
+  saveReportEdit();
+}
+
+function editFindingField(findingIdx, field) {
+  if (!S.findings?.findings?.[findingIdx]) return;
+  const fd = S.findings.findings[findingIdx];
+  const newText = prompt(`編輯 ${field}：`, fd[field] || '');
+  if (newText === null) return;
+  fd[field] = newText;
+  renderFindings();
+  saveReportEdit();
+}
+
+function deleteFindingItem(findingIdx) {
+  if (!S.findings?.findings) return;
+  if (!confirm(`確定刪除第 ${findingIdx + 1} 項發現？`)) return;
+  S.findings.findings.splice(findingIdx, 1);
+  renderFindings();
+  saveReportEdit();
+}
+
 function renderFindings() {
   const el = $('#report-content');
   if (!S.findings) { el.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-title">尚未產生報告</div></div>'; return; }
@@ -862,7 +988,7 @@ function renderFindings() {
   const f = S.findings;
   let html = '';
   if (f.executive_summary) {
-    html += `<div class="card mb-16"><div class="card-header"><div class="card-title">摘要</div></div><p style="white-space:pre-wrap;font-size:0.9rem;line-height:1.7">${esc(f.executive_summary)}</p></div>`;
+    html += `<div class="card mb-16"><div class="card-header"><div class="card-title">摘要</div><button class="btn btn-ghost btn-sm" onclick="editFindingSummary()">✎ 編輯</button></div><p style="white-space:pre-wrap;font-size:0.9rem;line-height:1.7">${esc(f.executive_summary)}</p></div>`;
   }
 
   const findings = f.findings || [];
@@ -872,8 +998,16 @@ function renderFindings() {
         <div class="finding-header" onclick="this.nextElementSibling.classList.toggle('hidden')">
           <span style="font-weight:600;flex:1">${i + 1}. ${esc(fd.title || '')}</span>
           <span class="risk-badge Medium">${esc(fd.finding_type || '')}</span>
+          <button class="btn-icon-sm" onclick="event.stopPropagation();deleteFindingItem(${i})" title="刪除此項">✕</button>
         </div>
         <div class="finding-body">
+          <div class="flex gap-8 mb-8">
+            <button class="btn btn-ghost btn-sm" onclick="editFindingField(${i},'title')">✎ 標題</button>
+            <button class="btn btn-ghost btn-sm" onclick="editFindingField(${i},'finding_type')">✎ 類型</button>
+            <button class="btn btn-ghost btn-sm" onclick="editFindingField(${i},'legal_basis')">✎ 法規</button>
+            <button class="btn btn-ghost btn-sm" onclick="editFindingField(${i},'finding_description')">✎ 說明</button>
+            <button class="btn btn-ghost btn-sm" onclick="editFindingField(${i},'recommendation')">✎ 建議</button>
+          </div>
           ${fd.legal_basis ? `<div class="finding-section"><div class="finding-section-title">法規依據</div><div class="finding-legal"><p style="font-size:0.85rem">${esc(fd.legal_basis)}</p>${fd.legal_text ? `<p class="text-xs text-muted mt-8">${esc(fd.legal_text)}</p>` : ''}</div></div>` : ''}
           ${fd.finding_description ? `<div class="finding-section"><div class="finding-section-title">發現說明</div><p style="font-size:0.85rem;white-space:pre-wrap">${esc(fd.finding_description)}</p></div>` : ''}
           ${fd.recommendation ? `<div class="finding-section"><div class="finding-section-title">建議改善</div><div class="finding-recommendation"><p style="font-size:0.85rem">${esc(fd.recommendation)}</p></div></div>` : ''}
@@ -885,8 +1019,15 @@ function renderFindings() {
         <div class="finding-header" onclick="this.nextElementSibling.classList.toggle('hidden')">
           <span style="font-weight:600;flex:1">${i + 1}. ${esc(fd.title || '')}</span>
           <span class="risk-badge ${esc(fd.risk_level || '')}">${esc(fd.risk_level || '')}</span>
+          <button class="btn-icon-sm" onclick="event.stopPropagation();deleteFindingItem(${i})" title="刪除此項">✕</button>
         </div>
         <div class="finding-body">
+          <div class="flex gap-8 mb-8">
+            <button class="btn btn-ghost btn-sm" onclick="editFindingField(${i},'title')">✎ 標題</button>
+            <button class="btn btn-ghost btn-sm" onclick="editFindingField(${i},'risk_level')">✎ 風險</button>
+            <button class="btn btn-ghost btn-sm" onclick="editFindingField(${i},'condition')">✎ 現況</button>
+            <button class="btn btn-ghost btn-sm" onclick="editFindingField(${i},'recommendation')">✎ 建議</button>
+          </div>
           ${fd.criteria ? `<div class="finding-section"><div class="finding-section-title">Criteria 標準</div><p style="font-size:0.85rem">${esc(fd.criteria)}</p></div>` : ''}
           ${fd.condition ? `<div class="finding-section"><div class="finding-section-title">Condition 現況</div><p style="font-size:0.85rem">${esc(fd.condition)}</p></div>` : ''}
           ${fd.cause ? `<div class="finding-section"><div class="finding-section-title">Cause 原因</div><p style="font-size:0.85rem">${esc(fd.cause)}</p></div>` : ''}
@@ -910,15 +1051,10 @@ async function renderReportView() {
   // Try loading the latest report from DB if we have a project
   if (S.projectId && S.reportGeneration.status !== 'running') {
     try {
-      const reports = await api('GET', `/projects/${S.projectId}/findings`);
-      if (reports?.length) {
-        const latest = reports[0];
-        S.findings = latest.report_data || null;
-        S.findingsFormat = latest.report_format || S.reportFormat;
-        S.reportFormat = S.findingsFormat;
-        const sel = $('#report-format');
-        if (sel) sel.value = S.reportFormat;
-        if (S.findings) { renderFindings(); return; }
+      await loadReportList();
+      if (S.reportList.length && !S.findings) {
+        await loadReportById(S.reportList[0].id);
+        if (S.findings) return;
       }
     } catch (_) {}
   }
@@ -1134,7 +1270,15 @@ window.deleteFrameworkAdmin = deleteFrameworkAdmin;
 window.uploadFrameworkSource = uploadFrameworkSource;
 window.saveControl = saveControl;
 window.deleteControlAdmin = deleteControlAdmin;
+window.deleteQuestion = deleteQuestion;
+window.addNewQuestion = addNewQuestion;
+window.editQuestionText = editQuestionText;
 window.generateReport = generateReport;
 window.onFormatChange = onFormatChange;
+window.loadReportById = loadReportById;
+window.deleteCurrentReport = deleteCurrentReport;
+window.editFindingSummary = editFindingSummary;
+window.editFindingField = editFindingField;
+window.deleteFindingItem = deleteFindingItem;
 window.toggleSidebar = toggleSidebar;
 window.closeSidebar = closeSidebar;

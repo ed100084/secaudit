@@ -152,3 +152,28 @@ async def api_get_findings(project_id: str):
     if not get_project(project_id):
         raise HTTPException(404, "Project not found")
     return get_findings(project_id)
+
+
+@router.get("/findings/{finding_id}")
+def api_get_finding(finding_id: str):
+    from db import get_finding
+    finding = get_finding(finding_id)
+    if not finding:
+        raise HTTPException(404, "Finding not found")
+    return finding
+
+
+@router.patch("/findings/{finding_id}")
+def api_update_finding(finding_id: str, body: dict):
+    from db import update_finding, get_finding
+    if not update_finding(finding_id, body):
+        raise HTTPException(404, "Finding not found")
+    return get_finding(finding_id)
+
+
+@router.delete("/findings/{finding_id}")
+def api_delete_finding(finding_id: str):
+    from db import delete_finding
+    if not delete_finding(finding_id):
+        raise HTTPException(404, "Finding not found")
+    return {"ok": True}
