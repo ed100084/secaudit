@@ -86,6 +86,19 @@ foreach ($needle in @(
   }
 }
 
+Step "LLM adapter critical hooks"
+$llmService = Get-Content llm_service.py -Raw
+foreach ($needle in @(
+  "_force_direct_answer_messages",
+  "_extract_message_content",
+  "/no_think",
+  "reasoning_content"
+)) {
+  if ($llmService -notmatch [regex]::Escape($needle)) {
+    Fail "Missing LLM adapter hook: $needle"
+  }
+}
+
 Step "Static browser wiring checks"
 $moduleScripts = [regex]::Matches($index, '<script[^>]+type="module"[^>]+src="([^"]+)"')
 if ($moduleScripts.Count -lt 1) {

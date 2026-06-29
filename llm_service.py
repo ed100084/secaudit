@@ -61,9 +61,43 @@ def _build_payload(
     return payload
 
 
+def _selected_model() -> str:
+    return (
+        settings.OPENROUTER_MODEL
+        if settings.LLM_BACKEND == "openrouter"
+        else settings.CLI_PROXY_MODEL
+    )
+
+
+def _force_direct_answer_messages(messages: list) -> list:
+    copied = [dict(m) for m in messages]
+    for idx in range(len(copied) - 1, -1, -1):
+        if copied[idx].get("role") != "user":
+            continue
+        content = copied[idx].get("content") or ""
+        if "/no_think" not in content:
+            copied[idx]["content"] = (
+                f"{content}\n\n/no_think\n"
+                "直接輸出最終 JSON，不要輸出思考過程、說明文字或 markdown。"
+            )
+        break
+    return copied
+
+
+def _extract_message_content(message: dict) -> str:
+    content = message.get("content") or ""
+    if content.strip():
+        return content
+    reasoning = message.get("reasoning_content") or message.get("reasoning") or ""
+    if ("[" in reasoning and "]" in reasoning) or ("{" in reasoning and "}" in reasoning):
+        return reasoning
+    return ""
+
+
 async def _call_llm(messages: list, max_tokens: int = 4096, temperature: float = 0.3) -> str:
     """非串流呼叫 — 依 LLM_BACKEND 路由"""
-    payload = _build_payload(messages, max_tokens, temperature)
+    base_payload = _build_payload(messages, max_tokens, temperature)
+    model = _selected_model().lower()
 
     if settings.LLM_BACKEND == "openrouter":
         url = "https://openrouter.ai/api/v1/chat/completions"
@@ -74,6 +108,10 @@ async def _call_llm(messages: list, max_tokens: int = 4096, temperature: float =
 
     async with httpx.AsyncClient(timeout=120) as client:
         for attempt in range(3):
+            payload = dict(base_payload)
+            if "qwen" in model or attempt > 0:
+                payload["messages"] = _force_direct_answer_messages(messages)
+                payload["max_tokens"] = max(int(payload.get("max_tokens") or 0), 8192)
             try:
                 resp = await client.post(url, headers=headers, json=payload)
                 if resp.status_code in (429, 503) and attempt < 2:
@@ -90,7 +128,7 @@ async def _call_llm(messages: list, max_tokens: int = 4096, temperature: float =
                         await asyncio.sleep(3)
                         continue
                     raise RuntimeError("LLM 回傳空 choices")
-                content = (choices[0].get("message") or {}).get("content") or ""
+                content = _extract_message_content(choices[0].get("message") or {})
                 if not content.strip():
                     logger.warning(f"LLM returned empty content: {str(data)[:500]}")
                     if attempt < 2:
@@ -335,7 +373,7 @@ async def generate_questions(
         {"role": "user", "content": user_message},
     ]
 
-    raw = await _call_llm(messages, max_tokens=max(2048, min(8192, target_count * 700)), temperature=0.7)
+    raw = await _call_llm(messages, max_tokens=max(8192, min(12000, target_count * 1400)), temperature=0.7)
     logger.info(f"[generate_questions] raw length={len(raw)}, first 200 chars: {raw[:200]}")
     raw = _strip_json_fences(raw)
     try:
@@ -357,7 +395,7 @@ async def generate_questions(
         if not text:
             continue
         normalized.append({
-            "id": q.get("id", str(uuid.uuid4())),
+            "id": str(uuid.uuid4()),
             "text": text,
             "category": q.get("category", "治理與合規"),
             "source_framework": q.get("source_framework", ""),

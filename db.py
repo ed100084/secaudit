@@ -699,7 +699,7 @@ def merge_generated_questions(project_id: str, generated_questions: list, target
                    response_text, auditor_notes, evidence, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    q.get("id", str(uuid.uuid4())),
+                    str(uuid.uuid4()),
                     project_id,
                     existing_count + appended,
                     q.get("text", ""),

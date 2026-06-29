@@ -10,7 +10,7 @@ from routers import verify_api_key
 from routers import projects, audit, findings
 from db import startup_cleanup
 
-APP_VERSION = "2026.06.29.28"
+APP_VERSION = "2026.06.29.30"
 
 app = FastAPI(title="SecAudit API", version=APP_VERSION)
 
