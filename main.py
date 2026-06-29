@@ -8,10 +8,16 @@ from fastapi.staticfiles import StaticFiles
 from config import settings
 from routers import verify_api_key
 from routers import projects, audit, findings
+from db import startup_cleanup
 
 APP_VERSION = "2026.06.29.21"
 
 app = FastAPI(title="SecAudit API", version=APP_VERSION)
+
+
+@app.on_event("startup")
+def on_startup():
+    startup_cleanup()
 
 
 @app.middleware("http")

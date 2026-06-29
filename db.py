@@ -139,7 +139,6 @@ def _ensure_schema(conn: sqlite3.Connection):
     _ensure_project_columns(conn)
     _seed_quick_phrases(conn)
     _seed_audit_frameworks(conn)
-    _cleanup_stale_jobs(conn)
 
 
 def _ensure_project_columns(conn: sqlite3.Connection):
@@ -193,6 +192,12 @@ def _cleanup_stale_jobs(conn: sqlite3.Connection):
            finished_at = ? WHERE status = 'running'""",
         (now,),
     )
+
+
+def startup_cleanup():
+    """Call once at app startup to clean stale jobs."""
+    with _db() as conn:
+        _cleanup_stale_jobs(conn)
 
 
 def _seed_quick_phrases(conn: sqlite3.Connection):
