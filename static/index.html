@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecAudit — 資安稽核現場工具</title>
+  <meta name="description" content="資安稽核現場記錄與報告產生工具">
+  <link rel="stylesheet" href="css/app.css?v=2026.06.29.11">
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- ═══ Sidebar ═══ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">SA</div>
+      <div>
+        <div class="sidebar-title">SecAudit</div>
+        <div class="sidebar-version" id="app-version">v2026.06.29.11</div>
+      </div>
+      <button class="sidebar-close-btn" type="button" aria-label="關閉選單" onclick="closeSidebar()">
+        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-section-title">工作流程</div>
+        <button class="nav-item active" data-view="dashboard" onclick="navigate('dashboard')">
+          <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+          總覽
+        </button>
+        <button class="nav-item" data-view="setup" onclick="navigate('setup')">
+          <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+          專案設定
+        </button>
+        <button class="nav-item" data-view="record" onclick="navigate('record')">
+          <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          現場記錄
+          <span class="nav-badge" id="nav-record-badge">0</span>
+        </button>
+        <button class="nav-item" data-view="report" onclick="navigate('report')">
+          <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          稽核報告
+        </button>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">管理</div>
+        <button class="nav-item" data-view="projects" onclick="navigate('projects')">
+          <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+          所有專案
+        </button>
+        <button class="nav-item" data-view="frameworks" onclick="navigate('frameworks')">
+          <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5S19.832 5.477 21 6.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>
+          框架管理
+        </button>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <label>稽核員</label>
+      <input type="text" id="auditor-name" placeholder="輸入姓名" maxlength="30">
+    </div>
+  </aside>
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+
+  <!-- ═══ Main ═══ -->
+  <div class="main-content">
+    <header class="content-header">
+      <div class="flex items-center gap-12">
+        <button class="mobile-menu-btn" onclick="toggleSidebar()">
+          <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <div>
+          <h2 id="view-title">總覽</h2>
+          <p id="view-subtitle">稽核專案管理</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-8">
+        <span class="text-xs text-muted" id="auto-save-status"></span>
+        <span class="text-xs text-muted" id="project-name-display"></span>
+      </div>
+    </header>
+
+    <div class="content-body">
+
+      <!-- ═══ Dashboard View ═══ -->
+      <div class="view active" id="view-dashboard">
+        <div class="empty-state" id="dashboard-empty">
+          <div class="empty-state-icon">🔐</div>
+          <div class="empty-state-title">歡迎使用 SecAudit</div>
+          <div class="empty-state-desc">開始一個新的稽核專案，或從專案列表中選擇</div>
+          <button class="btn btn-primary btn-lg" onclick="createNewProject()">
+            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            建立新稽核專案
+          </button>
+        </div>
+        <div id="dashboard-content" class="hidden">
+          <div class="stats-grid mb-24" id="dashboard-stats"></div>
+          <div id="dashboard-questions"></div>
+        </div>
+      </div>
+
+      <!-- ═══ Setup View ═══ -->
+      <div class="view" id="view-setup">
+        <div class="card mb-16">
+          <div class="card-header">
+            <div class="card-title">專案基本資訊</div>
+          </div>
+          <div class="grid-2 mb-16">
+            <div class="form-group">
+              <label class="form-label">專案名稱</label>
+              <input class="form-input" id="project-name" placeholder="例：113年度OO機關資安稽核">
+            </div>
+            <div class="form-group">
+              <label class="form-label">受稽單位</label>
+              <input class="form-input" id="project-org" placeholder="例：XX部資訊處">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">受稽單位責任等級</label>
+            <select class="form-select" id="resp-level">
+              <option value="">-- 不指定 --</option>
+              <option value="A">A 級</option>
+              <option value="B">B 級</option>
+              <option value="C">C 級</option>
+              <option value="D">D 級</option>
+              <option value="E">E 級</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">產出問題數</label>
+            <input class="form-input" id="question-count" type="number" min="1" max="30" step="1" value="8">
+          </div>
+        </div>
+
+        <div class="card mb-16">
+          <div class="card-header">
+            <div class="card-title">選擇稽核法規框架</div>
+            <div class="card-subtitle">台灣資安法規為主要框架（預設勾選），ISO 標準為輔助</div>
+          </div>
+          <div class="flex flex-col gap-8" id="framework-list"></div>
+        </div>
+
+        <div class="card mb-16">
+          <div class="card-header">
+            <div>
+              <div class="card-title">稽核範圍與情境</div>
+              <div class="card-subtitle">可套用情境範本，也可自行修改內容</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">稽核情境範本</label>
+            <select class="form-select" id="template-select" onchange="applyTemplate(this.value)">
+              <option value="">-- 自行輸入 --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">稽核範圍 <span class="text-danger">*</span></label>
+            <textarea class="form-textarea" id="scope-input" rows="3" placeholder="例如：資訊服務委外管理、存取控制作業、事件應變機制..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">稽核情境 / 背景說明 <span class="text-danger">*</span></label>
+            <textarea class="form-textarea" id="context-input" rows="4" placeholder="例如：年度例行稽核，重點關注雲端服務委外採購流程..."></textarea>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-lg btn-full" onclick="startAudit()">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          產生稽核問題並開始記錄
+        </button>
+      </div>
+
+      <!-- ═══ Record View ═══ -->
+      <div class="view" id="view-record">
+        <div id="record-empty" class="empty-state">
+          <div class="empty-state-icon">📋</div>
+          <div class="empty-state-title">尚未產生稽核問題</div>
+          <div class="empty-state-desc">請先完成專案設定</div>
+          <button class="btn btn-primary" onclick="navigate('setup')">前往專案設定</button>
+        </div>
+        <div id="record-content" class="hidden">
+          <!-- Progress bar -->
+          <div class="card mb-16" style="padding:14px 20px">
+            <div class="flex items-center justify-between mb-8">
+              <span class="text-sm" id="record-progress">進度：0 / 0</span>
+              <div class="flex gap-8">
+                <button class="btn btn-ghost btn-sm" onclick="navigate('report')" id="btn-gen-report">
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  產生報告
+                </button>
+              </div>
+            </div>
+            <div style="height:4px;background:var(--bg-elevated);border-radius:2px;overflow:hidden">
+              <div id="progress-bar" style="height:100%;background:var(--accent);border-radius:2px;transition:width 0.3s;width:0%"></div>
+            </div>
+          </div>
+
+          <!-- Question list + Detail -->
+          <div id="question-panels"></div>
+        </div>
+      </div>
+
+      <!-- ═══ Report View ═══ -->
+      <div class="view" id="view-report">
+        <div class="card mb-16" style="padding:14px 20px">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="card-title">稽核發現報告</div>
+              <div class="card-subtitle" id="report-format-label">IIA 5C 格式</div>
+            </div>
+            <div class="flex gap-8">
+              <select class="form-select" id="report-format" style="width:auto" onchange="onFormatChange(this.value)">
+                <option value="iia5c">IIA 5C 格式</option>
+                <option value="gov">政府機關格式</option>
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="generateReport()">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                產生報告
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="report-content">
+          <div class="empty-state">
+            <div class="empty-state-icon">📊</div>
+            <div class="empty-state-title">尚未產生報告</div>
+            <div class="empty-state-desc">完成記錄後點擊「產生報告」</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Projects View ═══ -->
+      <div class="view" id="view-projects">
+        <div class="flex items-center justify-between mb-16">
+          <div class="card-title">所有稽核專案</div>
+          <button class="btn btn-primary btn-sm" onclick="createNewProject()">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            新建專案
+          </button>
+        </div>
+        <div id="projects-list"></div>
+      </div>
+
+      <!-- ═══ Frameworks View ═══ -->
+      <div class="view" id="view-frameworks">
+        <div class="card mb-16">
+          <div class="card-header">
+            <div>
+              <div class="card-title">上傳法條原文</div>
+              <div class="card-subtitle">支援 TXT、Markdown、PDF、Word、Excel；解析後會建立可編輯框架</div>
+            </div>
+          </div>
+          <div class="grid-2 mb-16">
+            <div class="form-group"><label class="form-label">框架名稱</label><input class="form-input" id="fw-upload-name" placeholder="例如：新版資安維護計畫規範"></div>
+            <div class="form-group">
+              <label class="form-label">分類</label>
+              <select class="form-select" id="fw-upload-category">
+                <option value="law">政府法規</option>
+                <option value="standard">產業標準</option>
+                <option value="internal_rule">院內規章</option>
+                <option value="custom">自訂規則</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group"><label class="form-label">來源</label><input class="form-input" id="fw-upload-source" placeholder="公告機關、版本、日期或網址"></div>
+          <div class="form-group"><label class="form-label">檔案</label><input class="form-input" id="fw-upload-file" type="file" accept=".txt,.md,.pdf,.docx,.xlsx,.xls"></div>
+          <button class="btn btn-primary" onclick="uploadFrameworkSource()">上傳並建立框架</button>
+        </div>
+
+        <div class="card mb-16">
+          <div class="card-header">
+            <div>
+              <div class="card-title">稽核框架知識庫</div>
+              <div class="card-subtitle">法規、標準與院內規章可動態新增、停用與調整內容</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="newFrameworkForm()">新增框架</button>
+          </div>
+          <div id="framework-admin-list"></div>
+        </div>
+
+        <div class="card mb-16">
+          <div class="card-header">
+            <div>
+              <div class="card-title" id="framework-editor-title">新增框架</div>
+              <div class="card-subtitle">完整內容供報告分析使用；摘要內容供問題生成使用</div>
+            </div>
+          </div>
+          <div class="grid-2 mb-16">
+            <div class="form-group">
+              <label class="form-label">框架 ID</label>
+              <input class="form-input" id="fw-edit-id" placeholder="例如：hospital_internal_rule">
+            </div>
+            <div class="form-group">
+              <label class="form-label">分類</label>
+              <select class="form-select" id="fw-edit-category">
+                <option value="law">政府法規</option>
+                <option value="standard">產業標準</option>
+                <option value="internal_rule">院內規章</option>
+                <option value="custom">自訂規則</option>
+                <option value="built-in">內建框架</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid-2 mb-16">
+            <div class="form-group">
+              <label class="form-label">名稱</label>
+              <input class="form-input" id="fw-edit-name" placeholder="例如：院內資安管理規範">
+            </div>
+            <div class="form-group">
+              <label class="form-label">英文名稱</label>
+              <input class="form-input" id="fw-edit-name-en" placeholder="Optional">
+            </div>
+          </div>
+          <div class="form-group"><label class="form-label">描述</label><input class="form-input" id="fw-edit-description"></div>
+          <div class="form-group"><label class="form-label">來源</label><input class="form-input" id="fw-edit-source" placeholder="法規來源、版本、公告日期或檔名"></div>
+          <div class="flex gap-16 mb-16">
+            <label class="framework-toggle"><input type="checkbox" id="fw-edit-primary"> 預設推薦</label>
+            <label class="framework-toggle"><input type="checkbox" id="fw-edit-enabled" checked> 啟用</label>
+          </div>
+          <div class="form-group"><label class="form-label">摘要內容</label><textarea class="form-textarea" id="fw-edit-compact" rows="5"></textarea></div>
+          <div class="form-group"><label class="form-label">完整內容</label><textarea class="form-textarea" id="fw-edit-text" rows="8"></textarea></div>
+          <div class="flex gap-8">
+            <button class="btn btn-primary" onclick="saveFramework()">儲存框架</button>
+            <button class="btn btn-ghost" onclick="newFrameworkForm()">清空</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">控制措施</div>
+              <div class="card-subtitle" id="control-framework-label">請先選擇框架</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="saveControl()">新增控制措施</button>
+          </div>
+          <div class="grid-2 mb-16">
+            <div class="form-group"><label class="form-label">控制領域</label><input class="form-input" id="control-domain" placeholder="例如：存取控制"></div>
+            <div class="form-group"><label class="form-label">控制項</label><input class="form-input" id="control-item" placeholder="例如：權限定期覆核"></div>
+          </div>
+          <div class="grid-2 mb-16">
+            <div class="form-group"><label class="form-label">等級</label><input class="form-input" id="control-level" placeholder="例如：A / B / 普 / 中 / 高"></div>
+            <div class="form-group"><label class="form-label">依據</label><input class="form-input" id="control-reference" placeholder="例如：第 10 條 / A.5.15"></div>
+          </div>
+          <div class="form-group"><label class="form-label">要求內容</label><textarea class="form-textarea" id="control-requirement" rows="4"></textarea></div>
+          <div id="control-list"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loading-overlay">
+  <div style="text-align:center">
+    <div class="spinner" style="margin:0 auto 16px"></div>
+    <p id="loading-text" style="color:var(--text-secondary)">處理中...</p>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast toast-error" id="toast"></div>
+
+<script type="module" src="js/main.js?v=2026.06.29.11"></script>
+</body>
+</html>

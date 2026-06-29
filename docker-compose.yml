@@ -1,0 +1,28 @@
+services:
+  secaudit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: secaudit:latest
+    container_name: secaudit
+    restart: unless-stopped
+    ports:
+      - "${SECAUDIT_PORT:-8000}:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/app/data          # SQLite DB 持久化
+      - ./.env:/app/.env:ro       # 環境變數（不覆寫）
+    environment:
+      - SECAUDIT_API_KEY=${SECAUDIT_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - LLM_BACKEND=${LLM_BACKEND:-openrouter}   # openrouter | cli-proxy
+      - CLI_PROXY_URL=${CLI_PROXY_URL:-http://host.docker.internal:8080/v1}
+      - CLI_PROXY_API_KEY=${CLI_PROXY_API_KEY:-}
+      - CLI_PROXY_MODEL=${CLI_PROXY_MODEL:-local-model}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-2.5-flash-preview-05-20}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
