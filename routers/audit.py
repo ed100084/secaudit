@@ -36,7 +36,7 @@ def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
-async def _build_questions_for_project(project: dict) -> list:
+async def _build_questions_for_project(project: dict, existing_questions: list | None = None) -> list:
     target_count = max(1, min(int(project.get("question_count") or 8), 30))
     return await generate_llm_questions(
         framework_ids=project.get("frameworks", []),
@@ -45,6 +45,7 @@ async def _build_questions_for_project(project: dict) -> list:
         context=project.get("context", ""),
         responsibility_level=project.get("responsibility_level"),
         target_count=target_count,
+        existing_questions=existing_questions,
     )
 
 
@@ -58,7 +59,8 @@ async def _run_question_job(job_id: str, project_id: str):
             "message": "Generating audit questions",
             "updated_at": _now_iso(),
         })
-        questions = await _build_questions_for_project(project)
+        existing = get_questions(project_id)
+        questions = await _build_questions_for_project(project, existing_questions=existing)
         target_count = max(1, min(int(project.get("question_count") or len(questions) or 8), 30))
         questions = merge_generated_questions(project_id, questions, target_count)
         update_generation_job(job_id, {
@@ -218,7 +220,8 @@ async def api_generate_questions(project_id: str):
     if not project:
         raise HTTPException(404, "Project not found")
 
-    generated = await _build_questions_for_project(project)
+    existing = get_questions(project_id)
+    generated = await _build_questions_for_project(project, existing_questions=existing)
     target_count = max(1, min(int(project.get("question_count") or len(generated) or 8), 30))
     questions = merge_generated_questions(project_id, generated, target_count)
     return {"questions": questions}

@@ -48,13 +48,17 @@ def _build_payload(
         if settings.LLM_BACKEND == "openrouter"
         else settings.CLI_PROXY_MODEL
     )
-    return {
+    payload = {
         "model": model,
         "messages": messages,
         "max_tokens": max_tokens,
         "temperature": temperature,
         "stream": stream,
     }
+    if not stream:
+        import random
+        payload["seed"] = random.randint(1, 999999)
+    return payload
 
 
 async def _call_llm(messages: list, max_tokens: int = 4096, temperature: float = 0.3) -> str:
@@ -216,6 +220,7 @@ async def generate_questions(
     context: str,
     responsibility_level: str | None,
     target_count: int = 8,
+    existing_questions: list | None = None,
 ) -> list:
     target_count = max(1, min(int(target_count or 8), 30))
     framework_text = get_framework_text(framework_ids, custom_text, compact=True)
@@ -233,6 +238,7 @@ async def generate_questions(
         "問題要像稽核員現場會問人的話，語氣自然、具體、可回答，不要制式條列盤點。",
         "",
         "【選題原則】",
+        "- 每次產生的問題必須與上次不同，若有提供「已產生過的問題」，請完全避開相同主題與角度。",
         "- 只挑高影響、高風險、高機率出問題、跨單位協作、需要證據佐證的重點。",
         "- 多個相近條文或控制措施要合併成一題，不要一條法規問一題。",
         "- 優先涵蓋：權責分工、實際執行、例外處理、紀錄留存、覆核改善、委外/事件/權限/日誌等關鍵風險。",
@@ -261,12 +267,22 @@ async def generate_questions(
         f"請先判斷哪些控制重點最值得現場追問，再產生 {target_count} 題自然訪談式稽核問題清單。"
     )
 
+    if existing_questions:
+        existing_summary = "\n".join(
+            f"- [{q.get('category','')}] {q.get('text','')[:100]}"
+            for q in existing_questions[:20]
+        )
+        user_message += (
+            f"\n\n【以下是已經產生過的問題，請勿重複，請從不同角度、不同控制重點出題】\n"
+            f"{existing_summary}"
+        )
+
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_message},
     ]
 
-    raw = await _call_llm(messages, max_tokens=max(2048, min(8192, target_count * 700)), temperature=0.45)
+    raw = await _call_llm(messages, max_tokens=max(2048, min(8192, target_count * 700)), temperature=0.7)
     raw = _strip_json_fences(raw)
     raw = _repair_truncated_json(raw)
     questions = json.loads(raw)
