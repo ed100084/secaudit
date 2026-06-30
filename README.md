@@ -6,7 +6,7 @@
 
 | 項目 | 狀態 |
 | --- | --- |
-| 目前版本 | `2026.06.30.1` |
+| 目前版本 | `2026.06.30.2` |
 | 本機專案目錄 | `D:\workspace\secaudit` |
 | Pi 部署主機 | `192.168.88.115` |
 | Pi 專案目錄 | `/home/pi/secaudit` |
@@ -53,7 +53,7 @@
 | frontend 模組切割 | 進行中 | 已抽出 `static/js/ui.js` 與 `static/js/projects.js`，降低 `main.js` global state 面積 |
 | 殘屍 job 清理 | 已完成 | container 啟動時自動標記中斷的 running job |
 | Git 版本控制 | 已完成 | GitHub: ed100084/secaudit |
-| Pi 部署 | 已完成 | 版本 `2026.06.29.32` 已部署並確認 container healthy；本機版本 `2026.06.30.1` 待部署 |
+| Pi 部署 | 已完成 | 版本 `2026.06.29.32` 已部署並確認 container healthy；本機版本 `2026.06.30.2` 待部署 |
 
 ## 目前產題流程
 

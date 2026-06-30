@@ -1,7 +1,7 @@
 import { S } from './state.js';
 import { api, getApiKey, getAuditorName, setAuditorName, openSSE, uploadApi } from './api.js';
-import { $, $$, closeSidebar, esc, hideLoading, isMobileViewport, showLoading, showToast, toggleSidebar } from './ui.js?v=2026.06.30.1';
-import { createProjectsModule } from './projects.js?v=2026.06.30.1';
+import { $, $$, closeSidebar, esc, hideLoading, isMobileViewport, showLoading, showToast, toggleSidebar } from './ui.js?v=2026.06.30.2';
+import { createProjectsModule } from './projects.js?v=2026.06.30.2';
 
 // ─── Helpers ─────────────────────────────────────────────
 const Projects = createProjectsModule({
