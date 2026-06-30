@@ -77,6 +77,8 @@ foreach ($needle in @(
   "formatJobTime",
   "renderQuestionGenerationWarning",
   "question-generation-warning",
+  "renderFrameworkIngestionResult",
+  "framework-ingestion-result",
   "createProjectsModule",
   "pollQuestionGeneration",
   "pollReportGeneration"
@@ -96,6 +98,21 @@ foreach ($needle in @(
 )) {
   if ($llmService -notmatch [regex]::Escape($needle)) {
     Fail "Missing LLM adapter hook: $needle"
+  }
+}
+
+Step "Framework ingestion critical hooks"
+$documentParser = Get-Content document_parser.py -Raw
+$auditRouter = Get-Content routers\audit.py -Raw
+foreach ($needle in @(
+  "parse_document",
+  "extract_requirement_controls",
+  "build_compact_text",
+  "suspected_scanned"
+)) {
+  $source = "$documentParser`n$auditRouter"
+  if ($source -notmatch [regex]::Escape($needle)) {
+    Fail "Missing framework ingestion hook: $needle"
   }
 }
 

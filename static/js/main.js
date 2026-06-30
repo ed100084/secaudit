@@ -1,7 +1,7 @@
 import { S } from './state.js';
 import { api, getApiKey, getAuditorName, setAuditorName, openSSE, uploadApi } from './api.js';
-import { $, $$, closeSidebar, esc, hideLoading, isMobileViewport, showLoading, showToast, toggleSidebar } from './ui.js?v=2026.06.29.30';
-import { createProjectsModule } from './projects.js?v=2026.06.29.30';
+import { $, $$, closeSidebar, esc, hideLoading, isMobileViewport, showLoading, showToast, toggleSidebar } from './ui.js?v=2026.06.30.1';
+import { createProjectsModule } from './projects.js?v=2026.06.30.1';
 
 // ─── Helpers ─────────────────────────────────────────────
 const Projects = createProjectsModule({
@@ -365,6 +365,7 @@ async function uploadFrameworkSource() {
   try {
     const saved = await uploadApi('/frameworks/upload', formData);
     showToast('法條原文已建立為框架', 'success');
+    renderFrameworkIngestionResult(saved.ingestion);
     $('#fw-upload-name').value = '';
     $('#fw-upload-source').value = '';
     $('#fw-upload-file').value = '';
@@ -374,6 +375,39 @@ async function uploadFrameworkSource() {
     await selectFrameworkAdmin(saved.id);
   } catch (e) { showToast('上傳失敗：' + e.message); }
   finally { hideLoading(); }
+}
+
+function renderFrameworkIngestionResult(ingestion) {
+  const el = $('#framework-ingestion-result');
+  if (!el) return;
+  if (!ingestion) {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  const d = ingestion.diagnostics || {};
+  const stats = [
+    d.parser ? `Parser: ${d.parser}` : '',
+    d.page_count ? `頁數: ${d.page_count}` : '',
+    d.pages_with_text !== undefined ? `有文字頁: ${d.pages_with_text}` : '',
+    d.table_count ? `表格: ${d.table_count}` : '',
+    d.sheet_count ? `工作表: ${d.sheet_count}` : '',
+    d.char_count !== undefined ? `字數: ${d.char_count}` : '',
+    `控制措施: ${ingestion.control_count || 0}`,
+  ].filter(Boolean).join(' · ');
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="alert ${ingestion.suspected_scanned ? 'alert-warning' : ''}" style="align-items:flex-start">
+      <div class="flex-1">
+        <div class="alert-title">${ingestion.suspected_scanned ? '疑似掃描 PDF，建議改用 OCR' : '框架解析完成'}</div>
+        <div class="alert-desc">${esc(stats)}</div>
+        <details class="mt-8">
+          <summary class="text-xs text-muted" style="cursor:pointer">查看解析預覽</summary>
+          <pre class="parse-preview">${esc(ingestion.preview || '')}</pre>
+        </details>
+      </div>
+    </div>
+  `;
 }
 
 async function loadControls(frameworkId) {
@@ -459,16 +493,19 @@ async function startAudit() {
     S.project = await api('GET', `/projects/${S.projectId}`);
     $('#project-name-display').textContent = S.project.name;
     hideLoading();
-    startQuestionGeneration(S.projectId);
+    await startQuestionGeneration(S.projectId, { throwOnError: true });
     navigate('record');
     showToast('已開始在背景產生稽核問題，可先切到其他頁面', 'success');
-  } catch (e) { showToast('產生問題失敗：' + e.message); }
+  } catch (e) {
+    if (S.projectId && S.questionGeneration.status === 'error') navigate('record');
+    showToast('產生問題失敗：' + e.message);
+  }
   finally { hideLoading(); }
 }
 
-function startQuestionGeneration(projectId) {
+function startQuestionGeneration(projectId, options = {}) {
   if (S.questionGeneration.status === 'running' && S.questionGeneration.projectId === projectId) {
-    return;
+    return S.questionGeneration.promise || Promise.resolve(S.questionGeneration);
   }
 
   clearQuestionPollTimer();
@@ -503,9 +540,12 @@ function startQuestionGeneration(projectId) {
       $('#nav-record-badge').textContent = '!';
       if (S.currentView === 'record') renderRecordView();
       showToast(S.questionGeneration.message);
+      if (options.throwOnError) throw e;
+      return null;
     });
 
   S.questionGeneration.promise = promise;
+  return promise;
 }
 
 function clearQuestionPollTimer() {

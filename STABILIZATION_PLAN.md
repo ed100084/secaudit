@@ -63,6 +63,7 @@ Status as of `2026.06.29.25`:
 | P1 | Add UI warning when LLM returns fewer questions than requested | Done; record view shows produced/target count and retry/manual-add actions |
 | P1 | Add Playwright or lightweight browser automation for module load + click smoke test | Done as static browser wiring checks; can later upgrade to real browser click automation |
 | P2 | Split `static/js/main.js` into modules: projects, setup, record, report, admin | In progress: `ui.js` and `projects.js` extracted; continue one domain at a time after smoke checks |
+| P2 | Add framework ingestion pipeline v1 | Done: upload now produces markdown preview, diagnostics, scanned-PDF warning, and extracted controls |
 | P2 | Split `db.py` into project/question/job/finding/framework persistence modules | Reduce hidden coupling and large-file edits |
 | P2 | Introduce formal job runner abstraction | Makes cancel/retry/restart semantics explicit |
 

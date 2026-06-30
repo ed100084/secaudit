@@ -25,7 +25,7 @@ from models import (
     AuditControlCreate, AuditControlUpdate,
 )
 from frameworks import get_framework_options
-from document_parser import parse_file
+from document_parser import build_compact_text, extract_requirement_controls, parse_document
 from llm_service import generate_questions as generate_llm_questions
 from audit_templates import get_all_templates, get_template
 
@@ -151,7 +151,7 @@ async def api_upload_framework(
             shutil.copyfileobj(file.file, target)
         if temp_path.stat().st_size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
             raise HTTPException(400, f"檔案超過 {settings.MAX_UPLOAD_SIZE_MB} MB 限制")
-        content = parse_file(str(temp_path))
+        parsed = parse_document(str(temp_path))
     except HTTPException:
         raise
     except Exception as e:
@@ -159,23 +159,44 @@ async def api_upload_framework(
     finally:
         temp_path.unlink(missing_ok=True)
 
-    content = content.strip()
+    content = parsed.text.strip()
     if not content:
         raise HTTPException(400, "檔案未解析出文字內容")
 
     framework_id = f"fw_{uuid.uuid4().hex[:12]}"
+    controls = extract_requirement_controls(parsed.markdown)
+    compact_text = build_compact_text(parsed.markdown, controls)
     try:
-        return create_audit_framework({
+        framework = create_audit_framework({
             "id": framework_id,
             "name": name,
             "category": category,
             "source": source or file.filename or "uploaded file",
             "description": f"由上傳檔案建立：{file.filename}",
-            "text": content,
-            "compact_text": content[:4000],
+            "text": parsed.markdown or content,
+            "compact_text": compact_text,
             "primary": primary,
             "enabled": enabled,
         })
+        created_controls = 0
+        for idx, control in enumerate(controls):
+            try:
+                create_audit_control({
+                    **control,
+                    "framework_id": framework_id,
+                    "sort_order": idx,
+                })
+                created_controls += 1
+            except ValueError:
+                continue
+        framework["ingestion"] = {
+            "filename": file.filename,
+            "diagnostics": parsed.diagnostics,
+            "control_count": created_controls,
+            "preview": (parsed.markdown or content)[:1200],
+            "suspected_scanned": bool(parsed.diagnostics.get("suspected_scanned")),
+        }
+        return framework
     except ValueError as e:
         raise HTTPException(400, str(e))
 

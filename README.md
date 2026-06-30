@@ -6,7 +6,7 @@
 
 | 項目 | 狀態 |
 | --- | --- |
-| 目前版本 | `2026.06.29.30` |
+| 目前版本 | `2026.06.30.1` |
 | 本機專案目錄 | `D:\workspace\secaudit` |
 | Pi 部署主機 | `192.168.88.115` |
 | Pi 專案目錄 | `/home/pi/secaudit` |
@@ -39,6 +39,7 @@
 | LLM stream 容錯 | 已修正 | 空 choices/content 自動重試，不再導致 job crash |
 | Qwen reasoning model 相容 | 已修正 | 對 Qwen 類模型加 `/no_think` 並提高 token floor，避免只回 reasoning_content 導致 content 空值 |
 | LLM 題目 ID 去信任 | 已修正 | 追加 LLM 題目時由 backend 重新產生 UUID，避免模型回傳重複 id 撞 DB |
+| framework ingestion v1 | 已完成 | 上傳文件會產生 Markdown preview、diagnostics，並抽取應辦事項為 controls |
 | LLM JSON 解析強化 | 已完成 | 三層 fallback：strip fences → repair truncated → extract array |
 | 問題多樣性 | 已完成 | 既有題目回饋進 prompt、temperature 0.7、random seed |
 | 題數不足處理 | 已修正 | 會依缺少題數最多 retry 3 次，未達目標不再誤標完成 |
@@ -52,7 +53,7 @@
 | frontend 模組切割 | 進行中 | 已抽出 `static/js/ui.js` 與 `static/js/projects.js`，降低 `main.js` global state 面積 |
 | 殘屍 job 清理 | 已完成 | container 啟動時自動標記中斷的 running job |
 | Git 版本控制 | 已完成 | GitHub: ed100084/secaudit |
-| Pi 部署 | 已完成 | 版本 `2026.06.29.30` 已部署並確認 container healthy |
+| Pi 部署 | 已完成 | 版本 `2026.06.29.32` 已部署並確認 container healthy；本機版本 `2026.06.30.1` 待部署 |
 
 ## 目前產題流程
 

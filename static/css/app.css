@@ -737,6 +737,19 @@ body {
   color: var(--text-secondary);
 }
 
+.parse-preview {
+  margin-top: 8px;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
 /* ─── Empty State ─────────────────────────────────────── */
 .empty-state {
   text-align: center;
